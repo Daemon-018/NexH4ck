@@ -66,18 +66,18 @@ banner(){
 CATALOG_DEFAULT='recon|nmap|pkg install nmap -y|termux-main|network discovery & port scan
 recon|sherlock|pip install sherlock -y|pip|osint username search (pipx install sherlock for isolate)
 recon|amass|pkg install amass -y|termux-main|attack surface mapping & asset discovery
-recon|recon-ng|pkg install recon-ng -y|termux-main|modular OSINT reconnaissance framework
-recon|dnsrecon|pkg install dnsrecon -y|termux-main|DNS enumeration & record scanning
+recon|recon-ng|git clone https://github.com/lanmaster53/recon-ng ~/recon-ng && pip install -r ~/recon-ng/REQUIREMENTS|git|modular OSINT reconnaissance framework (git)  
+recon|dnsrecon|pip install dnsrecon|pip|DNS enumeration & record scanning (pip)
 recon|theHarvester|pip install theHarvester|pip|email/domain/subdomain OSINT harness
 scan|sqlmap|pkg install sqlmap -y|termux-main|automated SQL injection & DB discovery
 scan|nikto|pkg install nikto -y|termux-main|web server vulnerability scanner
 scan|nuclei|pkg install nuclei -y|termux-main|fast template-based vuln scanner
 scan|wpscan|pkg install wpscan -y|termux-main|WordPress vulnerability scanner
 scan|gobuster|pkg install gobuster -y|termux-main|directory/file & DNS brute forcer
-web|thc-hydra|pkg install hydra -y|termux-main|parallel login cracker (many protocols)
+web|hydra|pkg install thc-hydra -y|termux-main|parallel login cracker (binary: hydra; pkg: thc-hydra)
 web|dirb|pkg install dirb -y|termux-main|web content scanner
-web|whatweb|pkg install whatweb -y|termux-main|website fingerprinting
-web|wfuzz|pkg install wfuzz -y|termux-main|web fuzzer
+web|whatweb|git clone https://github.com/urbanadventurer/WhatWeb ~/WhatWeb && cd ~/WhatWeb && ruby install.rb|git|website fingerprinting (git/ruby)
+web|wfuzz|pip install wfuzz|pip|web fuzzer (pip)
 passwd|john|pkg install john -y|termux-main|John the Ripper offline cracker
 passwd|cewl|pkg install cewl -y|termux-main|craft wordlists from sites
 passwd|hashcat|pkg install hashcat -y|termux-main|fast GPU hash cracker
