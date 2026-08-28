@@ -1,0 +1,204 @@
+#!/bin/bash
+# =============================================================================
+#  NexH4ck  -  the Termux security/offensive lab terminal.
+#
+#  Merges the i-Haklab-style tool catalog + dispatcher with a termuxvoid/apt
+#  lite-install model and a cyberpunk neon interface. Authored by @daemon-018.
+#
+#  ROE-FIRST: This tool only installs/launches security tools that are legal
+#  to run against systems you OWN or are EXPLICITLY AUTHORIZED to test.
+#  It never overrides your shell commands (apt, ls, sudo) and ships no
+#  phishing / credential-harvesting / ransomware payloads.
+#
+#  Usage:
+#    nexh4ck                 -> show menu (interactive, arrows/labels)
+#    nexh4ck list            -> list all tools by category
+#    nexh4ck search <name>   -> find a tool
+#    nexh4ck install <tool>  -> lite-install a tool from termux-main/git/pip
+#    nexh4ck run <tool>      -> launch a tool
+#    nexh4ck info <tool>     -> show what a tool does + install source
+#    nexh4ck ssh             -> the tmxssh feature (SSH server starter)
+#    nexh4ck update          -> pull latest tool catalog from the repo
+#    nexh4ck help            -> this help
+# =============================================================================
+
+# ---------------- config -----------------------------------------------------
+NEXH4CK_HOME="${NEXH4CK_HOME:-$HOME/.nexh4ck}"
+CATALOG="$NEXH4CK_HOME/catalog.conf"
+
+# ---------------- cyberpunk theme (from tmxssh) ------------------------------
+C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+C_GREEN=$'\033[38;5;48m'; C_CYAN=$'\033[38;5;51m'; C_PINK=$'\033[38;5;206m'
+C_AMBER=$'\033[38;5;227m'; C_RED=$'\033[38;5;203m'; C_PURPLE=$'\033[38;5;141m'
+
+TERM_COLS="${COLUMNS:-}"
+if [ -z "$TERM_COLS" ]; then
+  TERM_COLS=$(tput cols 2>/dev/null) || TERM_COLS=80
+fi
+[ "$TERM_COLS" -ge 40 ] 2>/dev/null || TERM_COLS=80
+[ "$TERM_COLS" -le 220 ] 2>/dev/null || TERM_COLS=220
+
+rep(){ local i s=""; for ((i=0;i<$2;i++)); do s+="$1"; done; printf '%s' "$s"; }
+hrule(){ printf '%s%s%s\n' "$C_CYAN" "$(rep '─' "$TERM_COLS")" "$C_RESET"; }
+hrule2(){ printf '%s%s%s\n' "$C_PINK" "$(rep '═' "$TERM_COLS")" "$C_RESET"; }
+say(){ printf '%s\n' "$*"; }
+ok(){  printf '%s[ OK ]%s %s%s%s\n' "$C_GREEN" "$C_RESET" "$C_PINK" "$*" "$C_RESET"; }
+warn(){ printf '%s[ WARN ]%s %s%s%s\n' "$C_AMBER" "$C_RESET" "$C_DIM" "$*" "$C_RESET"; }
+err(){ printf '%s[ ERROR ]%s %s%s%s\n' "$C_RED" "$C_RESET" "$C_PINK" "$*" "$C_RESET" >&2; }
+die(){ err "$*"; exit 1; }
+
+banner(){
+  local w=$((TERM_COLS/2)) p; p=$((w-24)); [ "$p" -lt 0 ] && p=0
+  echo ""
+  printf '%s%s%s\n' "$C_GREEN" "$(rep ' ' "$p")" " ███╗   ██╗███████╗██╗  ██╗██╗  ██╗ █████╗  ██████╗██╗  ██╗"
+  printf '%s%s%s\n' "$C_GREEN" "$(rep ' ' "$p")" " ████╗  ██║██╔════╝╚██╗██╔╝╚██╗██╔╝██╔══██╗██╔════╝██║ ██╔╝"
+  printf '%s%s%s\n' "$C_GREEN" "$(rep ' ' "$p")" " ██╔██╗ ██║█████╗   ╚███╔╝  ╚███╔╝ ███████║██║     █████╔╝ "
+  printf '%s%s%s\n' "$C_GREEN" "$(rep ' ' "$p")" " ██║╚██╗██║██╔══╝   ██╔██╗  ██╔██╗ ██╔══██║██║     ██╔═██╗ "
+  printf '%s%s%s\n' "$C_GREEN" "$(rep ' ' "$p")" " ██║ ╚████║███████╗██╔╝ ██╗██╔╝ ██╗██║  ██║╚██████╗██║  ██╗"
+  printf '%s%s%s\n' "$C_GREEN" "$(rep ' ' "$p")" " ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝"
+  printf '%s%s%s%s%s\n' "$C_DIM" "$(rep ' ' $((w-22)))" ":: AUTHORIZED TERMUX SECURITY LAB ::" "$C_RESET" "  $C_PURPLE@daemon-018$C_RESET"
+  echo ""
+}
+
+# ---------------- catalog (lite-install targets) -----------------------------
+# format per line:  category|tool|meta-command|source-label|one-line-desc
+# meta-command uses {t} = tool name; runs on 'install' (append -y for apt)
+CATALOG_DEFAULT='recon|nmap|pkg install nmap -y|termux-main|network discovery & port scan
+recon|sherlock|pip install sherlock -y|pip|osint username search (pipx install sherlock for isolate)
+recon|amass|pkg install amass -y|termux-main|attack surface mapping & asset discovery
+recon|recon-ng|pkg install recon-ng -y|termux-main|modular OSINT reconnaissance framework
+recon|dnsrecon|pkg install dnsrecon -y|termux-main|DNS enumeration & record scanning
+recon|theHarvester|pip install theHarvester|pip|email/domain/subdomain OSINT harness
+scan|sqlmap|pkg install sqlmap -y|termux-main|automated SQL injection & DB discovery
+scan|nikto|pkg install nikto -y|termux-main|web server vulnerability scanner
+scan|nuclei|pkg install nuclei -y|termux-main|fast template-based vuln scanner
+scan|wpscan|pkg install wpscan -y|termux-main|WordPress vulnerability scanner
+scan|gobuster|pkg install gobuster -y|termux-main|directory/file & DNS brute forcer
+web|thc-hydra|pkg install hydra -y|termux-main|parallel login cracker (many protocols)
+web|dirb|pkg install dirb -y|termux-main|web content scanner
+web|whatweb|pkg install whatweb -y|termux-main|website fingerprinting
+web|wfuzz|pkg install wfuzz -y|termux-main|web fuzzer
+passwd|john|pkg install john -y|termux-main|John the Ripper offline cracker
+passwd|cewl|pkg install cewl -y|termux-main|craft wordlists from sites
+passwd|hashcat|pkg install hashcat -y|termux-main|fast GPU hash cracker
+wireless|aircrack-ng|pkg install aircrack-ng -y|termux-main|WiFi audit suite (own networks)
+util|metasploit-framework|pkg install metasploit-framework -y|termux-main|exploit/metasploit framework (authorized use)
+util|hexmind|bash <(curl -s https://raw.githubusercontent.com/your/hexmind/main/install.sh)|git|Hari custom-patched AI hacking agent
+util|nexh4ck-ssh|nexh4ck ssh|bundled|tmxssh SSH server starter (bundled feature)'
+
+# ---------------- catalog management ----------------------------------------
+ensure_catalog(){
+  mkdir -p "$NEXH4CK_HOME"
+  if [ ! -f "$CATALOG" ]; then
+    printf '%s\n' "$CATALOG_DEFAULT" > "$CATALOG"
+  fi
+}
+
+list_categories(){
+  awk -F'|' 'NF&&$1!~/^#/{print $1}' "$CATALOG" | sort -u
+}
+
+search_tool(){
+  local q="$1"
+  awk -F'|' -v q="$q" 'tolower($2)~tolower(q){printf "  %s%s%s : %s%s%s  [%s]\n",C_GREEN,$2,C_RESET,C_CYAN,$5,C_RESET,$4}' \
+    C_GREEN="$C_GREEN" C_CYAN="$C_CYAN" C_RESET="$C_RESET" "$CATALOG"
+}
+
+tool_exists(){ awk -F'|' -v t="$1" '$2==t{print}' "$CATALOG" | head -1; }
+
+get_install_cmd(){ echo "$1" | cut -d'|' -f3 | sed "s/{t}/$(echo "$1"|cut -d'|' -f2)/g"; }
+get_source(){ echo "$1" | cut -d'|' -f4; }
+get_desc(){ echo "$1" | cut -d'|' -f5; }
+
+# ---------------- commands ---------------------------------------------------
+cmd_list(){
+  ensure_catalog
+  for c in $(list_categories); do
+    hrule
+    printf '%s[ %s%s%s ]%s\n' "$C_DIM" "$C_CYAN" "$c" "$C_RESET" "$C_RESET"
+    hrule2
+    awk -F'|' -v cat="$c" -v CG="$C_GREEN" -v CY="$C_CYAN" -v R="$C_RESET" \
+      '$1==cat{printf "  %s%-14s%s %s%s%s\n",CG,$2,R,CY,$5,R}' "$CATALOG"
+    echo ""
+  done
+  welldone "$(list_categories | wc -l)" "$(wc -l < "$CATALOG")"
+}
+
+cmd_search(){ ensure_catalog; [ -n "$1" ] || die "usage: nexh4ck search <name>"; search_tool "$1"; }
+
+cmd_info(){
+  ensure_catalog
+  local line; line=$(tool_exists "$1") || die "unknown tool: $1"
+  echo ""
+  hrule
+  printf '%s■%s %s%s%s\n' "$C_GREEN" "$C_RESET" "$C_PINK" "$(echo "$line"|cut -d'|' -f2)" "$C_RESET"
+  hrule2
+  printf '  %s%-10s%s%s\n' "$C_DIM" "source:" "$C_RESET" "$(get_source "$line")"
+  printf '  %s%-10s%s%s\n' "$C_DIM" "about:" "$C_RESET" "$(get_desc "$line")"
+  printf '  %s%-10s%s%s\n' "$C_DIM" "install:" "$C_RESET" "$(get_install_cmd "$line")"
+  hrule
+  echo ""
+}
+
+cmd_install(){
+  ensure_catalog
+  local line cmd
+  line=$(tool_exists "$1") || die "unknown tool: $1"
+  cmd=$(get_install_cmd "$line")
+  echo ""
+  printf '%s>>%s installing %s%s%s ...\n' "$C_CYAN" "$C_RESET" "$C_PINK" "$1" "$C_RESET"
+  echo ""
+  # special bundled SSH feature
+  if [ "$1" = "nexh4ck-ssh" ]; then
+    say "  (SSH server is built in — run: nexh4ck ssh)"
+    return 0
+  fi
+  eval "$cmd" || { err "install failed for $1 (try manual: $cmd)"; return 1; }
+  ok "installed: $1"
+  echo ""
+}
+
+cmd_run(){
+  ensure_catalog
+  tool_exists "$1" >/dev/null || die "unknown tool: $1"
+  if [ "$1" = "nexh4ck-ssh" ]; then cmd_ssh; return 0; fi
+  command -v "$1" >/dev/null 2>&1 || { warn "$1 not installed — run: nexh4ck install $1"; return 1; }
+  local tool="$1"; shift
+  say "  launching $tool ${*:+→ $*}"
+  "$tool" "$@"
+}
+
+cmd_ssh(){ command -v tmxssh >/dev/null 2>&1 && tmxssh "$@" || warn "tmxssh not on PATH — install the tmxssh package"; }
+
+cmd_help(){
+  banner
+  hrule
+  printf '%s[ %sNEXH4CK%s ]%s  authorized Termux security lab\n' "$C_DIM" "$C_CYAN" "$C_RESET" "$C_RESET"
+  hrule2
+  printf '  %s%-16s%s  %sinteractive menu%s\n'   "$C_PINK" 'nexh4ck' "$C_RESET" "$C_DIM" ""
+  printf '  %s%-16s%s  %slist all tools by category%s\n' "$C_PINK" 'nexh4ck list' "$C_RESET" "$C_DIM" ""
+  printf '  %s%-16s%s  %sfind a tool%s\n'         "$C_PINK" 'nexh4ck search T' "$C_RESET" "$C_DIM" ""
+  printf '  %s%-16s%s  %sshow tool info + install cmd%s\n' "$C_PINK" 'nexh4ck info T' "$C_RESET" "$C_DIM" ""
+  printf '  %s%-16s%s  %slite-install a tool%s\n' "$C_PINK" 'nexh4ck install T' "$C_RESET" "$C_DIM" ""
+  printf '  %s%-16s%s  %sruns a tool (info/help variants)%s\n' "$C_PINK" 'nexh4ck run T' "$C_RESET" "$C_DIM" ""
+  printf '  %s%-16s%s  %sSSH server starter (tmxssh)%s\n' "$C_PINK" 'nexh4ck ssh' "$C_RESET" "$C_DIM" ""
+  printf '  %s%-16s%s  %sshow this help%s\n'      "$C_PINK" 'nexh4ck help' "$C_RESET" "$C_DIM" ""
+  hrule
+  printf '%s  ROE: only test systems you own or are authorized to test.\n  crafted by %s@daemon-018%s · https://github.com/Daemon-018/NexH4ck%s\n' "$C_DIM" "$C_PURPLE" "$C_DIM" "$C_RESET"
+  hrule
+}
+
+welldone(){ printf '\n%s%s tool%s across %s categories — stay authorized.%s\n' "$C_GREEN" "$1" "$3" "$2" "$C_RESET"; }
+
+# ---------------- entry ------------------------------------------------------
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+case "${1:-}" in
+  list)   cmd_list ;;
+  search) cmd_search "$2" ;;
+  info)   cmd_info "$2" ;;
+  install) cmd_install "$2" ;;
+  run)    cmd_run "$@" ;;
+  ssh)    cmd_ssh "$@" ;;
+  help|-h|--help) cmd_help ;;
+  *)      cmd_help ;;
+esac
