@@ -21,7 +21,7 @@ SUITE="nexh4ck"
 COMPONENT="main"
 BINARY="binary-all"
 
-rm -rf "$REPO_DIR"
+rm -rf "$REPO_DIR/debs" "$REPO_DIR/dists"
 mkdir -p "$REPO_DIR/debs"
 mkdir -p "$REPO_DIR/dists/$SUITE/$COMPONENT/$BINARY"
 
