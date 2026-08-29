@@ -6,7 +6,7 @@
 # =============================================================================
 set -euo pipefail
 
-VER="0.1.0"
+VER="0.1.1"
 PACKAGE="nexh4ck"
 ARCH="all"
 MAINTAINER="Hari (Daemon-018) <daemon018@users.noreply.github.com>"
