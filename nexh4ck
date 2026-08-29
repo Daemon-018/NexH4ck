@@ -83,7 +83,7 @@ passwd|cewl|pkg install cewl -y|termux-main|craft wordlists from sites
 passwd|hashcat|pkg install hashcat -y|termux-main|fast GPU hash cracker
 wireless|aircrack-ng|pkg install aircrack-ng -y|termux-main|WiFi audit suite (own networks)
 util|metasploit-framework|pkg install metasploit-framework -y|termux-main|exploit/metasploit framework (authorized use)
-util|hexmind|bash <(curl -s https://raw.githubusercontent.com/your/hexmind/main/install.sh)|git|Hari custom-patched AI hacking agent
+util|hexmind|git clone https://github.com/cyberkallan/hexmind ~/hexmind && bash ~/hexmind/install.sh|git|HexMind v2.0 AI hacker terminal assistant (cyberkallan)
 util|nexh4ck-ssh|nexh4ck ssh|bundled|tmxssh SSH server starter (bundled feature)'
 
 # ---------------- catalog management ----------------------------------------
